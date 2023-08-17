@@ -24,6 +24,10 @@ This rule has a string option:
 * `"never"` disallows line breaks between arguments
 * `"consistent"` requires consistent usage of line breaks between arguments
 
+Or an object option
+
+* `"minArguments": null` (default) requires line breaks if the number of elements is at least the given integer. If this is 0, this condition will act the same as the option `"always"`. If this is `null` (the default), this condition is disabled
+
 ### always
 
 Examples of **incorrect** code for this rule with the default `"always"` option:
@@ -211,6 +215,46 @@ baz("one", "two", (x) => {
 });
 // or
 baz(
+    "one",
+    "two",
+    (x) => {
+        console.log(x);
+    }
+);
+```
+
+:::
+
+### minArguments
+
+Examples of **incorrect** code for this rule with the `{ "minArguments": 3 }` option:
+
+:::incorrect
+
+```js
+/*eslint function-call-argument-newline: ["error", { "minArguments": 3 }]*/
+var a = foo("one", "two");
+var b = bar("one", "two", "three");
+var c = baz("one", "two", (x) => {
+    console.log(x);
+});
+```
+
+:::
+
+Examples of **correct** code for this rule with the `{ "minArguments": 3 }` option:
+
+:::correct
+
+```js
+/*eslint function-call-argument-newline: ["error", { "minArguments": 3 }]*/
+var a = foo("one", "two");
+var b = bar(
+    "one",
+    "two",
+    "three"
+);
+var c = baz(
     "one",
     "two",
     (x) => {
