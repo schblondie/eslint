@@ -2489,6 +2489,97 @@ describe("RuleTester", () => {
 
             assert.strictEqual(processStub.callCount, 0, "never calls `process.emitWarning()`");
         });
+
+        it("should emit a deprecation warning when CodePath#currentSegments is accessed", () => {
+
+            const useCurrentSegmentsRule = {
+                create: () => ({
+                    onCodePathStart(codePath) {
+                        codePath.currentSegments.forEach(() => {});
+                    }
+                })
+            };
+
+            ruleTester.run("use-current-segments", useCurrentSegmentsRule, {
+                valid: ["foo"],
+                invalid: []
+            });
+
+            assert.strictEqual(processStub.callCount, 1, "calls `process.emitWarning()` once");
+            assert.deepStrictEqual(
+                processStub.getCall(0).args,
+                [
+                    "\"use-current-segments\" rule uses CodePath#currentSegments and will stop working in ESLint v9. Please read the documentation for how to update your code: https://eslint.org/docs/latest/extend/code-path-analysis#usage-examples",
+                    "DeprecationWarning"
+                ]
+            );
+        });
+
+        Object.entries({
+            getSource: "getText",
+            getSourceLines: "getLines",
+            getAllComments: "getAllComments",
+            getNodeByRangeIndex: "getNodeByRangeIndex",
+            getCommentsBefore: "getCommentsBefore",
+            getCommentsAfter: "getCommentsAfter",
+            getCommentsInside: "getCommentsInside",
+            getJSDocComment: "getJSDocComment",
+            getFirstToken: "getFirstToken",
+            getFirstTokens: "getFirstTokens",
+            getLastToken: "getLastToken",
+            getLastTokens: "getLastTokens",
+            getTokenAfter: "getTokenAfter",
+            getTokenBefore: "getTokenBefore",
+            getTokenByRangeStart: "getTokenByRangeStart",
+            getTokens: "getTokens",
+            getTokensAfter: "getTokensAfter",
+            getTokensBefore: "getTokensBefore",
+            getTokensBetween: "getTokensBetween"
+        }).forEach(([methodName, replacementName]) => {
+
+
+            it(`should log a deprecation warning when calling \`context.${methodName}\``, () => {
+                const ruleToCheckDeprecation = {
+                    meta: {
+                        type: "problem",
+                        schema: []
+                    },
+                    create(context) {
+                        return {
+                            Program(node) {
+
+                                // special case
+                                if (methodName === "getTokensBetween") {
+                                    context[methodName](node, node);
+                                } else {
+                                    context[methodName](node);
+                                }
+
+                                context.report({ node, message: "bad" });
+                            }
+                        };
+                    }
+                };
+
+                ruleTester.run("deprecated-method", ruleToCheckDeprecation, {
+                    valid: [],
+                    invalid: [
+                        { code: "var foo = bar;", options: [], errors: 1 }
+                    ]
+                });
+
+                assert.strictEqual(processStub.callCount, 1, "calls `process.emitWarning()` once");
+                assert.deepStrictEqual(
+                    processStub.getCall(0).args,
+                    [
+                        `"deprecated-method" rule is using \`context.${methodName}()\`, which is deprecated and will be removed in ESLint v9. Please use \`sourceCode.${replacementName}()\` instead.`,
+                        "DeprecationWarning"
+                    ]
+                );
+            });
+
+        });
+
     });
 
     /**
@@ -2870,4 +2961,73 @@ describe("RuleTester", () => {
 
     });
 
+    describe("Optional Test Suites", () => {
+        let originalRuleTesterDescribe;
+        let spyRuleTesterDescribe;
+
+        before(() => {
+            originalRuleTesterDescribe = RuleTester.describe;
+            spyRuleTesterDescribe = sinon.spy((title, callback) => callback());
+            RuleTester.describe = spyRuleTesterDescribe;
+        });
+        after(() => {
+            RuleTester.describe = originalRuleTesterDescribe;
+        });
+        beforeEach(() => {
+            spyRuleTesterDescribe.resetHistory();
+            ruleTester = new RuleTester();
+        });
+
+        it("should create a test suite with the rule name even if there are no test cases", () => {
+            ruleTester.run("no-var", require("../../fixtures/testers/rule-tester/no-var"), {
+                valid: [],
+                invalid: []
+            });
+            sinon.assert.calledWith(spyRuleTesterDescribe, "no-var");
+        });
+
+        it("should create a valid test suite if there is a valid test case", () => {
+            ruleTester.run("no-var", require("../../fixtures/testers/rule-tester/no-var"), {
+                valid: ["value = 0;"],
+                invalid: []
+            });
+            sinon.assert.calledWith(spyRuleTesterDescribe, "valid");
+        });
+
+        it("should not create a valid test suite if there are no valid test cases", () => {
+            ruleTester.run("no-var", require("../../fixtures/testers/rule-tester/no-var"), {
+                valid: [],
+                invalid: [
+                    {
+                        code: "var value = 0;",
+                        errors: [/^Bad var/u],
+                        output: " value = 0;"
+                    }
+                ]
+            });
+            sinon.assert.neverCalledWith(spyRuleTesterDescribe, "valid");
+        });
+
+        it("should create an invalid test suite if there is an invalid test case", () => {
+            ruleTester.run("no-var", require("../../fixtures/testers/rule-tester/no-var"), {
+                valid: [],
+                invalid: [
+                    {
+                        code: "var value = 0;",
+                        errors: [/^Bad var/u],
+                        output: " value = 0;"
+                    }
+                ]
+            });
+            sinon.assert.calledWith(spyRuleTesterDescribe, "invalid");
+        });
+
+        it("should not create an invalid test suite if there are no invalid test cases", () => {
+            ruleTester.run("no-var", require("../../fixtures/testers/rule-tester/no-var"), {
+                valid: ["value = 0;"],
+                invalid: []
+            });
+            sinon.assert.neverCalledWith(spyRuleTesterDescribe, "invalid");
+        });
+    });
 });
